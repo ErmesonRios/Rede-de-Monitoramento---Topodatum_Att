@@ -1,0 +1,364 @@
+// =============================================================================
+// GERADOR DE PDF — estilo documento técnico formal (fundo branco)
+// =============================================================================
+const generatePDF = async (card) => {
+  const { jsPDF } = window.jspdf;
+  const btn = document.getElementById("modal-pdf-btn");
+  const origLabel = btn.textContent;
+  btn.textContent = "⏳ Gerando...";
+  btn.disabled = true;
+
+  const logoImg = await loadImg(SITE_CONFIG.empresa.logo);
+
+  try {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pW = 210, pH = 297, mg = 15;
+    const cW = pW - mg * 2;
+    let y = 0;
+
+    // ── Paleta — documento formal branco ─────────────────────────────────────
+    const G   = [10, 170, 58];    // verde marca
+    const DG  = [3, 60, 20];      // verde escuro (títulos)
+    const BK  = [20, 20, 20];     // texto principal
+    const LB  = [100, 100, 100];  // labels
+    const MT  = [160, 160, 160];  // muted / linhas
+    const LN  = [210, 210, 210];  // borda clara
+    const TH  = [240, 240, 240];  // cabeçalho tabela
+
+    const FOOTER_H = 9;
+    const BOTTOM   = pH - FOOTER_H - 4;
+    const col2 = (cW - 2) / 2;
+    const col3 = (cW - 4) / 3;
+
+    const S = {
+      fill: (...c) => doc.setFillColor(...c),
+      draw: (...c) => doc.setDrawColor(...c),
+      text: (...c) => doc.setTextColor(...c),
+      font: (n, s) => doc.setFont(n, s),
+      size: (s)    => doc.setFontSize(s),
+      line: (w)    => doc.setLineWidth(w),
+    };
+
+    // Página inteira branca
+    S.fill(255, 255, 255); doc.rect(0, 0, pW, pH, "F");
+
+    const checkPage = (need) => { if (y + need > BOTTOM) addPage(); };
+
+    const addPage = () => {
+      doc.addPage();
+      S.fill(255, 255, 255); doc.rect(0, 0, pW, pH, "F");
+      // Mini cabeçalho de continuação
+      S.draw(...G); S.line(0.5); doc.line(0, 11, pW, 11);
+      S.font("helvetica", "bold"); S.size(6.5); S.text(...DG);
+      doc.text(SITE_CONFIG.empresa.nome, mg, 7.5);
+      S.font("helvetica", "normal"); S.text(...LB);
+      doc.text(`BASE ${card.code} — ${card.municipality}/${card.state}`, pW / 2, 7.5, { align: "center" });
+      doc.text("MONOGRAFIA DA BASE GEODÉSICA", pW - mg, 7.5, { align: "right" });
+      y = 17;
+    };
+
+    // ── Separador de seção ────────────────────────────────────────────────────
+    const sectionTitle = (title) => {
+      checkPage(16);
+      // Barra verde lateral + linha de fundo
+      S.fill(...G); doc.rect(mg, y, 3, 8, "F");
+      S.draw(...LN); S.line(0.2); doc.line(mg + 3, y + 8, pW - mg, y + 8);
+      S.font("helvetica", "bold"); S.size(8.5); S.text(...DG);
+      doc.text(title, mg + 7, y + 5.8);
+      y += 13;
+    };
+
+    // ── Campo label + valor ───────────────────────────────────────────────────
+    const field = (label, value, x, fy, w) => {
+      S.fill(255, 255, 255); S.draw(...LN); S.line(0.25);
+      doc.rect(x, fy, w, 14, "FD");
+      S.font("helvetica", "normal"); S.size(6); S.text(...LB);
+      doc.text(String(label).toUpperCase(), x + 3, fy + 5);
+      S.font("helvetica", "bold"); S.size(9); S.text(...BK);
+      const fit = doc.splitTextToSize(String(value ?? "—"), w - 6)[0];
+      doc.text(fit, x + 3, fy + 11.5);
+    };
+
+    // ════════════════════════════════════════════════════════════════════════
+    // CABEÇALHO — fundo branco, logo centralizada, título formal
+    // ════════════════════════════════════════════════════════════════════════
+    let hb = 6; // header bottom cursor
+
+    if (logoImg) {
+      const LOGO_H = 28;
+      const LOGO_W = Math.min(LOGO_H * (logoImg.w / logoImg.h), 65);
+      doc.addImage(logoImg.data, "PNG", pW / 2 - LOGO_W / 2, hb, LOGO_W, LOGO_H);
+      hb += LOGO_H + 3;
+      S.font("helvetica", "bold"); S.size(13); S.text(...DG);
+      doc.text(SITE_CONFIG.empresa.nome, pW / 2, hb + 6, { align: "center" });
+      S.font("helvetica", "normal"); S.size(7.5); S.text(...LB);
+      doc.text(SITE_CONFIG.empresa.subtitulo.toUpperCase(), pW / 2, hb + 12, { align: "center" });
+      hb += 15;
+    } else {
+      S.font("helvetica", "bold"); S.size(16); S.text(...DG);
+      doc.text(SITE_CONFIG.empresa.nome, pW / 2, hb + 10, { align: "center" });
+      S.font("helvetica", "normal"); S.size(8); S.text(...LB);
+      doc.text(SITE_CONFIG.empresa.subtitulo.toUpperCase(), pW / 2, hb + 17, { align: "center" });
+      hb += 20;
+    }
+
+    // Linha verde separadora
+    S.draw(...G); S.line(0.7); doc.line(mg, hb + 4, pW - mg, hb + 4);
+
+    // Rede label
+    S.font("helvetica", "normal"); S.size(7); S.text(...MT);
+    doc.text(`${SITE_CONFIG.rede.titulo} — ${SITE_CONFIG.rede.sigla}`, pW / 2, hb + 10, { align: "center" });
+    hb += 15;
+
+    // Linha fina
+    S.draw(...LN); S.line(0.3); doc.line(mg, hb, pW - mg, hb);
+    hb += 6;
+
+    // Título principal
+    S.font("helvetica", "bold"); S.size(14); S.text(...BK);
+    doc.text("MONOGRAFIA DA BASE GEODÉSICA", pW / 2, hb + 7, { align: "center" });
+
+    // Subtítulo (nome da base)
+    S.font("helvetica", "normal"); S.size(10); S.text(70, 70, 70);
+    doc.text(card.title || "", pW / 2, hb + 14, { align: "center" });
+
+    // Badge código (canto direito)
+    S.fill(...G); doc.roundedRect(pW - mg - 24, hb + 1, 24, 14, 2, 2, "F");
+    S.font("helvetica", "bold"); S.size(10); S.text(255, 255, 255);
+    doc.text(card.code || "", pW - mg - 12, hb + 10, { align: "center" });
+
+    // Data geração
+    S.font("helvetica", "normal"); S.size(6.5); S.text(...MT);
+    doc.text(
+      `Gerado em: ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
+      pW / 2, hb + 20, { align: "center" }
+    );
+    hb += 24;
+
+    // Linha verde grossa de fechamento do cabeçalho
+    S.draw(...G); S.line(0.8); doc.line(0, hb, pW, hb);
+    y = hb + 9;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 1. IDENTIFICAÇÃO
+    // ════════════════════════════════════════════════════════════════════════
+    sectionTitle("1. IDENTIFICAÇÃO DA BASE");
+
+    checkPage(15);
+    field("Código",              card.code,               mg,               y, col3);
+    field("Município",           card.municipality,       mg + col3 + 2,    y, col3);
+    field("Estado",              card.state,              mg + (col3+2)*2,  y, col3);
+    y += 16;
+    checkPage(15);
+    field("Localidade",          card.location,           mg,               y, col3);
+    field("Data de Implantação", card.installDate || "—", mg + col3 + 2,    y, col3);
+    field("Responsável",         card.responsible,        mg + (col3+2)*2,  y, col3);
+    y += 16;
+    if (card.finished && card.finishedDate && card.finishedDate !== "—") {
+      checkPage(15);
+      field("Data de Encerramento", card.finishedDate, mg, y, col2);
+      y += 16;
+    }
+    y += 3;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 2. LOCALIZAÇÃO — mapa satélite
+    // ════════════════════════════════════════════════════════════════════════
+    sectionTitle("2. LOCALIZAÇÃO");
+    const geo   = getCardGeo(card);
+    const MAP_H = 74;
+    checkPage(MAP_H + 12);
+
+    const satImgData = geo ? await captureSatelliteMap(geo) : null;
+    if (satImgData) {
+      doc.addImage(satImgData, "JPEG", mg, y, cW, MAP_H);
+      S.draw(...LN); S.line(0.3); doc.rect(mg, y, cW, MAP_H, "D");
+    } else {
+      S.fill(240, 240, 240); doc.rect(mg, y, cW, MAP_H, "F");
+      S.draw(...LN); S.line(0.3); doc.rect(mg, y, cW, MAP_H, "D");
+      S.font("helvetica", "normal"); S.size(9); S.text(...MT);
+      doc.text("Mapa não disponível", pW / 2, y + MAP_H / 2, { align: "center" });
+    }
+    if (geo) {
+      S.fill(20, 20, 20); doc.rect(mg, y + MAP_H - 8, cW, 8, "F");
+      S.font("helvetica", "bold"); S.size(6.5); S.text(...G);
+      doc.text(
+        `Lat: ${geo.lat.toFixed(7)}°   |   Long: ${geo.lng.toFixed(7)}°   |   Zona UTM 24S — SIRGAS 2000`,
+        pW / 2, y + MAP_H - 3, { align: "center" }
+      );
+    }
+    y += MAP_H + 6;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 3. FOTO DO MONUMENTO
+    // ════════════════════════════════════════════════════════════════════════
+    const photoSrc = MONUMENT_PHOTOS[card.code];
+    if (photoSrc) {
+      const photoObj = await loadImg(photoSrc);
+      if (photoObj) {
+        sectionTitle("3. FOTO DO MONUMENTO");
+        const PHOTO_H = 72;
+        const PHOTO_W = Math.min(PHOTO_H * (photoObj.w / photoObj.h), cW);
+        checkPage(PHOTO_H + 10);
+        const photoX = pW / 2 - PHOTO_W / 2;
+        doc.addImage(photoObj.data, "PNG", photoX, y, PHOTO_W, PHOTO_H);
+        S.draw(...LN); S.line(0.3); doc.rect(photoX, y, PHOTO_W, PHOTO_H, "D");
+        y += PHOTO_H + 6;
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 4. EQUIPAMENTO
+    // ════════════════════════════════════════════════════════════════════════
+    sectionTitle("4. EQUIPAMENTO");
+    checkPage(15);
+    field("Receptor GNSS",    card.receiver,      mg,            y, col2);
+    field("Antena",           card.antenna,       mg + col2 + 2, y, col2);
+    y += 16;
+    checkPage(15);
+    field("Altura da Antena", card.antennaHeight, mg,            y, col2);
+    y += 16 + 3;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 5. ACESSO
+    // ════════════════════════════════════════════════════════════════════════
+    if (card.access) {
+      sectionTitle("5. DESCRIÇÃO DE ACESSO");
+      const lines = doc.splitTextToSize(card.access, cW - 10);
+      const bH    = lines.length * 5.2 + 10;
+      checkPage(bH);
+      S.fill(255, 255, 255); S.draw(...LN); S.line(0.25);
+      doc.rect(mg, y, cW, bH, "FD");
+      S.fill(...G); doc.rect(mg, y, 2.5, bH, "F");
+      S.font("helvetica", "normal"); S.size(8.5); S.text(...BK);
+      doc.text(lines, mg + 7, y + 7);
+      y += bH + 5;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 6. STATUS
+    // ════════════════════════════════════════════════════════════════════════
+    sectionTitle("6. STATUS DE OPERAÇÃO");
+    const liveData = card.finished
+      ? { situacao: "FINALIZADO", ultimaAtualizacao: card.finishedDate || "—" }
+      : (card.mac ? (baseStatusMap[card.mac] || {}) : {});
+    const statusLabel = card.finished         ? "FINALIZADO"
+      : liveData.situacao === "SIM"   ? "ATIVA"
+      : liveData.situacao === "NÃO"  ? "INATIVA"
+      : "NÃO CONSULTADO";
+    checkPage(15);
+    field("Situação",           statusLabel,                          mg,            y, col2);
+    field("Última Atualização", liveData.ultimaAtualizacao || "—",   mg + col2 + 2, y, col2);
+    y += 16 + 3;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 7. COORDENADAS
+    // ════════════════════════════════════════════════════════════════════════
+    const coordsGlobal   = COORDINATES.filter(c => c.municipality === card.municipality);
+    const coordsArchived = card.coordinates ?? [];
+    const allCoords      = [...coordsGlobal];
+    coordsArchived.forEach(a => { if (!allCoords.some(c => c.radius === a.radius)) allCoords.push(a); });
+
+    if (allCoords.length) {
+      sectionTitle("7. COORDENADAS — ZONA UTM 24S / SIRGAS 2000");
+
+      const headers = ["Raio", "Este (m)", "Sx (m)", "Norte (m)", "Sy (m)", "Altitude (m)", "Sz (m)"];
+      const colW    = [22, 30, 16, 30, 16, 28, 16];
+      const tableW  = colW.reduce((s, v) => s + v, 0);
+      const tx      = mg + (cW - tableW) / 2;
+      const rowH    = 8.5;
+
+      // Cabeçalho da tabela — cinza claro, texto escuro
+      checkPage(rowH + 4);
+      let cx = tx;
+      headers.forEach((h, i) => {
+        S.fill(...TH); S.draw(...MT); S.line(0.2);
+        doc.rect(cx, y, colW[i], rowH, "FD");
+        S.font("helvetica", "bold"); S.size(6.5); S.text(...BK);
+        doc.text(h, cx + colW[i] / 2, y + rowH / 2 + 1.5, { align: "center" });
+        cx += colW[i];
+      });
+      y += rowH;
+
+      // Linhas de dados — branco / cinza muito claro alternado
+      allCoords.forEach((coord, idx) => {
+        checkPage(rowH + 4);
+        const rowBg = idx % 2 === 0 ? [255, 255, 255] : [248, 250, 248];
+        const vals  = [
+          coord.radius || "—", coord.east   || "—", coord.sigmaX || "—",
+          coord.north  || "—", coord.sigmaY || "—", coord.height || "—",
+          coord.SigmaZ || "—",
+        ];
+        let cx = tx;
+        vals.forEach((v, i) => {
+          S.fill(...rowBg); S.draw(...LN); S.line(0.2);
+          doc.rect(cx, y, colW[i], rowH, "FD");
+          S.font("helvetica", i === 0 ? "bold" : "normal"); S.size(6.5); S.text(...BK);
+          doc.text(String(v), cx + colW[i] / 2, y + rowH / 2 + 1.5, { align: "center" });
+          cx += colW[i];
+        });
+        y += rowH;
+      });
+
+      y += 4;
+      checkPage(8);
+      S.font("helvetica", "italic"); S.size(6.5); S.text(...MT);
+      doc.text("* Sistema de Referência SIRGAS 2000 (EPSG:31984) — Fuso UTM 24S.", mg, y);
+      y += 8;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // ASSINATURA
+    // ════════════════════════════════════════════════════════════════════════
+    checkPage(58);
+    y += 6;
+    sectionTitle("RESPONSABILIDADE TÉCNICA");
+
+    const sigX     = pW / 2 - 45;
+    const sigW     = 90;
+    const fullDate = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+
+    S.draw(...MT); S.line(0.5);
+    doc.line(sigX, y + 28, sigX + sigW, y + 28);
+
+    const ty = y + 34;
+    let tyOff = 0;
+    if (SITE_CONFIG.responsavel.nome) {
+      S.font("helvetica", "bold"); S.size(9); S.text(...BK);
+      doc.text(SITE_CONFIG.responsavel.nome, pW / 2, ty, { align: "center" });
+      tyOff = 5.5;
+    }
+    S.font("helvetica", "bold"); S.size(8.5); S.text(...BK);
+    doc.text(SITE_CONFIG.responsavel.habilitacao, pW / 2, ty + tyOff, { align: "center" });
+    S.font("helvetica", "normal"); S.size(7.5); S.text(...LB);
+    doc.text(SITE_CONFIG.responsavel.crea, pW / 2, ty + tyOff + 5.5, { align: "center" });
+    S.size(7);
+    doc.text(`${SITE_CONFIG.responsavel.local}, ${fullDate}`, pW / 2, ty + tyOff + 11, { align: "center" });
+    y += tyOff ? 58 : 52;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // RODAPÉ em todas as páginas — linha verde + info compacta
+    // ════════════════════════════════════════════════════════════════════════
+    const totalPages = doc.getNumberOfPages();
+    const shortDate  = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const timeStr    = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      const fy = pH - FOOTER_H;
+      S.fill(255, 255, 255); doc.rect(0, fy, pW, FOOTER_H, "F");
+      S.draw(...G); S.line(0.5); doc.line(0, fy, pW, fy);
+      S.font("helvetica", "bold"); S.size(6.5); S.text(...DG);
+      doc.text(SITE_CONFIG.empresa.nome, mg, fy + 6);
+      S.font("helvetica", "normal"); S.text(...MT);
+      doc.text(`BASE ${card.code}  |  ${card.municipality}/${card.state}`, pW / 2, fy + 6, { align: "center" });
+      doc.text(`Pág. ${p}/${totalPages}  |  ${shortDate} ${timeStr}`, pW - mg, fy + 6, { align: "right" });
+    }
+
+    doc.save(`Monografia_${card.code}_${card.municipality.replace(/\s+/g, "_")}.pdf`);
+
+  } finally {
+    btn.textContent = origLabel;
+    btn.disabled = false;
+  }
+};

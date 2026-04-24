@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Datatype:wght@100..900&display=swap" rel="stylesheet">
+  <title>RPMC-TOPODATUM</title>
+</head>
+
+<body>
+  <header>
+    <div id="site-header">
+      <div id="site-brand">
+        <img id="site-logo" src="" alt="" />
+        <div id="site-brand-text">
+          <span id="site-brand-name"></span>
+          <span id="site-brand-sub"></span>
+        </div>
+      </div>
+      <nav>
+        <ul>
+          <li>
+            <button type="button" class="tab active" data-key="rpmc">RPMC</button>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+  <div id="modal-overlay" class="hidden">
+    <div id="modal">
+      <div id="modal-header">
+        <div id="modal-title-area">
+          <span id="modal-code"></span>
+          <h2 id="modal-title"></h2>
+        </div>
+        <button id="modal-close" type="button">&#x2715;</button>
+      </div>
+      <div id="modal-tabs"></div>
+      <div id="modal-body"></div>
+      <div id="modal-footer">
+        <a id="modal-link" target="_blank">Acessar Link</a>
+        <button id="modal-pdf-btn" type="button">&#x2913; Relatório PDF</button>
+        <button id="modal-close-btn" type="button">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+
+    <section id="rpmc" class="tab-active">
+      <h1>Rede Particular de Monitoramento Contínuo</h1>
+      <div id="cards-container"></div>
+      <div id="map-wrapper">
+        <div id="map-canvas"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div id="footer-inner">
+      <div id="footer-brand">
+        <img id="footer-logo-img" src="" alt="" />
+        <div id="footer-brand-text">
+          <span id="footer-logo">TOPODATUM</span>
+          <span id="footer-tagline">Topografia &amp; Geotecnologias</span>
+        </div>
+      </div>
+      <div id="footer-center">
+        <span>RPMC — Rede Particular de Monitoramento Contínuo</span>
+      </div>
+      <div id="footer-copy">
+        <span>&copy; <span id="footer-year"></span> Topodatum. Todos os direitos reservados.</span>
+        <span id="footer-dev">Desenvolvido por <strong>Ermeson Braga</strong></span>
+      </div>
+    </div>
+  </footer>
+</body>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="./script.js"></script>
+
+</html>

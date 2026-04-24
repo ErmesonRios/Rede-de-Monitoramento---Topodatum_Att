@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — RPMC Topodatum</title>
+  <style>
+    :root {
+      --bg:      #0b1020; --panel: #121a30; --p2: #18223f;
+      --text:    #eaf1ff; --muted: #9fb0d1; --line: #2a3863;
+      --green:   #36d399; --blue:  #7aa2ff; --red: #ff6b6b;
+      --yellow:  #f6c90e; --cyan:  #4fd1c5;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; background: #0a0f1f; color: var(--text); min-height: 100dvh; }
+
+    /* ── Topbar ── */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+      padding: 12px 20px; background: rgba(10,15,30,.95); border-bottom: 1px solid var(--line);
+      position: sticky; top: 0; z-index: 200; backdrop-filter: blur(8px);
+    }
+    .topbar-brand { display: flex; flex-direction: column; gap: 2px; }
+    .topbar-brand h1 { font-size: 17px; }
+    .topbar-brand p  { font-size: 11px; color: var(--muted); }
+
+    /* ── Tabs ── */
+    .tab-bar {
+      display: flex; gap: 4px; padding: 0 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(10,15,30,.85); position: sticky; top: 57px; z-index: 100;
+    }
+    .tab-btn {
+      padding: 11px 18px; font-size: 13px; font-weight: 700; cursor: pointer;
+      border: none; background: transparent; color: var(--muted);
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: color .2s, border-color .2s;
+    }
+    .tab-btn:hover  { color: var(--text); }
+    .tab-btn.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+
+    /* ── Content ── */
+    .wrap       { max-width: 1440px; margin: 0 auto; padding: 20px; }
+    .tab-pane   { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* ── Grid ── */
+    .grid2 { display: grid; grid-template-columns: 1.1fr .9fr; gap: 16px; align-items: start; }
+    @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+
+    /* ── Card ── */
+    .card {
+      background: rgba(18,26,48,.96); border: 1px solid var(--line);
+      border-radius: 16px; padding: 18px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.25);
+    }
+    .card-title { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
+    .card-sub   { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+
+    /* ── Form ── */
+    .form-grid   { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    @media (max-width:760px) { .form-grid { grid-template-columns: 1fr; } }
+    .field       { display: flex; flex-direction: column; gap: 5px; }
+    .field.full  { grid-column: 1 / -1; }
+    .field.hide  { display: none; }
+    label        { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    input, select, textarea {
+      width: 100%; background: var(--p2); color: var(--text);
+      border: 1px solid var(--line); border-radius: 9px;
+      padding: 9px 11px; font-size: 13px; outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    textarea { min-height: 75px; resize: vertical; }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--blue); box-shadow: 0 0 0 3px rgba(122,162,255,.15);
+    }
+    .check { display: flex; gap: 8px; align-items: center; background: var(--p2); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; }
+    .check input { width: auto; }
+
+    /* ── Config groups ── */
+    .cfg-group { margin-bottom: 22px; }
+    .cfg-group-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+      color: var(--cyan); border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-bottom: 12px;
+    }
+    .cfg-grid   { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    @media (max-width:760px) { .cfg-grid { grid-template-columns: 1fr; } }
+    .cfg-grid .full { grid-column: 1 / -1; }
+
+    /* ── Coords ── */
+    .section-sep   { border: none; border-top: 1px solid var(--line); margin: 18px 0 14px; }
+    .section-label { font-size: 13px; font-weight: 700; margin-bottom: 4px; color: var(--cyan); }
+    .coords-list   { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .coord-item    { border: 1px solid var(--line); background: #111933; border-radius: 12px; padding: 11px; }
+    .coord-head    { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .coord-head strong { font-size: 12px; color: var(--cyan); }
+    .coord-grid    { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    @media (max-width:920px) { .coord-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width:540px) { .coord-grid { grid-template-columns: 1fr; } }
+
+    /* ── Buttons ── */
+    .btnrow { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 14px; }
+    button {
+      border: none; border-radius: 9px; padding: 9px 13px; cursor: pointer;
+      font-weight: 700; font-size: 12px; transition: opacity .15s, transform .1s; white-space: nowrap;
+    }
+    button:active   { transform: scale(.97); }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary   { background: var(--cyan);   color: #06211e; }
+    .btn-secondary { background: #243255;        color: #edf3ff; }
+    .btn-danger    { background: var(--red);     color: #fff;    }
+    .btn-ok        { background: var(--green);   color: #052814; }
+    .btn-warn      { background: var(--yellow);  color: #1a1000; }
+    .mini          { padding: 5px 9px; border-radius: 7px; font-size: 11px; }
+
+    /* ── Status ── */
+    .status {
+      margin-top: 12px; padding: 10px 13px; border-radius: 9px;
+      background: #0f1730; border: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5;
+    }
+    .status.ok  { border-color: rgba(54,211,153,.4); color: #b8ffe1; }
+    .status.err { border-color: rgba(255,107,107,.4); color: #ffc2c2; }
+
+    /* ── List (bases) ── */
+    .list-header { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .list-header input { flex: 1; min-width: 130px; padding: 8px 11px; border-radius: 8px; font-size: 12px; }
+    .list-count  { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .list        { max-height: 640px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .item        {
+      padding: 11px 13px; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;
+      cursor: pointer; transition: background .15s;
+    }
+    .item:last-child { border-bottom: none; }
+    .item:hover   { background: rgba(122,162,255,.06); }
+    .item.selected { background: rgba(79,209,197,.07); border-left: 3px solid var(--cyan); }
+    .item strong  { display: block; margin-bottom: 2px; font-size: 12px; }
+    .item-meta    { font-size: 11px; color: var(--muted); line-height: 1.6; }
+    .item-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+    .badge {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      padding: 2px 7px; border-radius: 999px; margin-left: 5px;
+    }
+    .badge.ok   { background: rgba(54,211,153,.18); color: #86f5c9; }
+    .badge.off  { background: rgba(255,107,107,.14); color: #ff9f9f; }
+    .badge.warn { background: rgba(246,201,14,.18);  color: #ffe07a; }
+
+    /* ── Monitoramento ── */
+    .monitor-header  { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    .monitor-refresh { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+    .monitor-table   { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .monitor-table th {
+      background: #18223f; color: var(--muted); text-transform: uppercase;
+      font-size: 10px; letter-spacing: .06em; padding: 9px 11px; text-align: left;
+      border-bottom: 1px solid var(--line);
+    }
+    .monitor-table td { padding: 10px 11px; border-bottom: 1px solid rgba(42,56,99,.5); vertical-align: middle; }
+    .monitor-table tr:last-child td { border-bottom: none; }
+    .monitor-table tr:hover td { background: rgba(122,162,255,.04); }
+    .dot {
+      display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+      margin-right: 6px; vertical-align: middle;
+    }
+    .dot.on   { background: var(--green); box-shadow: 0 0 5px var(--green); }
+    .dot.off  { background: var(--red); }
+    .dot.unk  { background: var(--muted); }
+    .dot.partial { background: var(--yellow); }
+    .scroll-x { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+
+    /* ── Toggle auto-refresh ── */
+    .toggle {
+      position: relative; display: inline-block; width: 34px; height: 18px; cursor: pointer;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0; background: #2a3863; border-radius: 18px; transition: .2s;
+    }
+    .slider::before {
+      content: ""; position: absolute; width: 12px; height: 12px;
+      left: 3px; top: 3px; background: white; border-radius: 50%; transition: .2s;
+    }
+    input:checked + .slider { background: var(--green); }
+    input:checked + .slider::before { transform: translateX(16px); }
+
+    /* ── Summary cards ── */
+    .summary-row  { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .summary-card {
+      flex: 1; min-width: 120px; padding: 12px 16px; border-radius: 12px;
+      border: 1px solid var(--line); background: rgba(18,26,48,.8);
+    }
+    .summary-card .s-val  { font-size: 24px; font-weight: 700; line-height: 1; }
+    .summary-card .s-lbl  { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .summary-card.s-ok  .s-val { color: var(--green); }
+    .summary-card.s-off .s-val { color: var(--red); }
+    .summary-card.s-all .s-val { color: var(--blue); }
+    .summary-card.s-fin .s-val { color: var(--yellow); }
+
+    /* ── Number input ── */
+    input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    <h1>⚙ Admin — RPMC Topodatum</h1>
+    <p id="api-url-label">API: detectando…</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn-secondary" id="reloadBtn">↺ Recarregar</button>
+    <button class="btn-ok"        id="sendServerBtn">⬆ Enviar bases ao servidor</button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="bases">📡 Bases GNSS</button>
+  <button class="tab-btn"        data-tab="monitor">📊 Monitoramento</button>
+  <button class="tab-btn"        data-tab="config">⚙ Configurações</button>
+</div>
+
+<div class="wrap">
+
+  <!-- ══ ABA: BASES ══════════════════════════════════════════════════════════ -->
+  <div class="tab-pane active" id="pane-bases">
+    <div class="grid2">
+
+      <!-- Formulário -->
+      <div class="card">
+        <div class="card-title" id="form-heading">Nova base</div>
+        <div class="card-sub">Campos com * são obrigatórios. <kbd>Ctrl+S</kbd> para salvar.</div>
+
+        <div class="form-grid">
+          <div class="field"><label>Título *</label>         <input id="title"         placeholder="BASE DE QUIXERAMOBIM"></div>
+          <div class="field"><label>Código *</label>         <input id="code"          placeholder="QX01"></div>
+          <div class="field"><label>MAC Address</label>      <input id="mac"           placeholder="b8:27:eb:b0:16:3f"></div>
+          <div class="field"><label>Link externo</label>     <input id="link"          placeholder="http://..."></div>
+          <div class="field"><label>Município *</label>      <input id="municipality"  placeholder="Quixeramobim"></div>
+          <div class="field"><label>Estado *</label>         <input id="state"         value="CE"></div>
+          <div class="field"><label>Localização *</label>    <input id="location"      placeholder="Centro"></div>
+          <div class="field"><label>Responsável *</label>    <input id="responsible"   value="Topodatum Topografia"></div>
+          <div class="field"><label>Receptor *</label>       <input id="receiver"      value="u-blox F9P"></div>
+          <div class="field"><label>Antena</label>           <input id="antenna"       placeholder="BEIBT800D NONE"></div>
+          <div class="field"><label>Altura da antena</label> <input id="antennaHeight" placeholder="1.75m"></div>
+          <div class="field"><label>Data de implantação</label><input id="installDate" placeholder="Abr/2026"></div>
+
+          <div class="field">
+            <label>Status</label>
+            <div class="check"><input id="finished" type="checkbox"><span>Base finalizada / desativada</span></div>
+          </div>
+          <div class="field" id="finishedDateField">
+            <label>Data de finalização</label>
+            <input id="finishedDate" placeholder="Abr/2026">
+          </div>
+
+          <div class="field full"><label>Descrição de acesso</label>
+            <textarea id="access" placeholder="Zona urbana de ...-CE, acesso pela rodovia ..."></textarea>
+          </div>
+        </div>
+
+        <hr class="section-sep">
+        <div class="section-label">📷 Foto do Monumento</div>
+        <div class="card-sub">A foto aparecerá no modal da base e no relatório PDF.</div>
+
+        <div id="photo-area">
+          <!-- Preview da foto atual -->
+          <div id="photo-preview-wrap" style="display:none;margin-bottom:10px">
+            <img id="photo-preview" src="" alt="Foto do monumento"
+              style="max-width:100%;max-height:200px;border-radius:10px;border:1px solid var(--line);object-fit:cover;display:block">
+            <div style="margin-top:6px;font-size:11px;color:var(--muted)" id="photo-filename"></div>
+          </div>
+          <div id="photo-empty" style="font-size:12px;color:var(--muted);margin-bottom:8px">Nenhuma foto cadastrada para esta base.</div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <label style="cursor:pointer">
+              <span class="btn-secondary" style="padding:7px 12px;border-radius:9px;font-size:12px;font-weight:700;display:inline-block">
+                📁 Selecionar foto
+              </span>
+              <input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp"
+                style="display:none">
+            </label>
+            <button class="btn-ok  mini" id="photo-upload-btn" style="display:none">⬆ Enviar foto</button>
+            <button class="btn-danger mini" id="photo-delete-btn" style="display:none">🗑 Remover foto</button>
+          </div>
+          <div id="status-photo" class="status" style="margin-top:8px;display:none"></div>
+        </div>
+
+        <hr class="section-sep">
+        <div class="section-label">Coordenadas — UTM 24S / SIRGAS 2000</div>
+        <div class="card-sub">Cada linha representa uma medição. Raio e Localidade são obrigatórios.</div>
+        <div id="coordsList" class="coords-list"></div>
+        <div class="btnrow">
+          <button class="btn-secondary mini" id="addCoordBtn">+ Adicionar medição</button>
+        </div>
+
+        <div class="btnrow">
+          <button class="btn-primary"   id="saveBtn">💾 Salvar base</button>
+          <button class="btn-secondary" id="newBtn">+ Nova</button>
+          <button class="btn-danger"    id="deleteBtn">🗑 Excluir</button>
+        </div>
+        <div id="status-bases" class="status">Pronto.</div>
+      </div>
+
+      <!-- Lista -->
+      <div class="card">
+        <div class="card-title">Bases cadastradas</div>
+        <div class="card-sub">Clique numa base para editar.</div>
+        <div class="list-header">
+          <input id="searchInput" placeholder="🔍  Filtrar nome ou código…">
+          <span class="list-count" id="bases-count"></span>
+        </div>
+        <div class="list" id="basesList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ABA: MONITORAMENTO ══════════════════════════════════════════════════ -->
+  <div class="tab-pane" id="pane-monitor">
+    <div class="card">
+      <div class="monitor-header">
+        <div>
+          <div class="card-title">Status ao Vivo das Bases</div>
+          <div class="card-sub">Dados lidos diretamente do banco de dados PostgreSQL.</div>
+        </div>
+        <div class="monitor-refresh">
+          <label class="toggle">
+            <input type="checkbox" id="autoRefreshToggle">
+            <span class="slider"></span>
+          </label>
+          <span>Auto-atualizar (30s)</span>
+          <button class="btn-secondary mini" id="refreshMonitorBtn">↺ Atualizar</button>
+        </div>
+      </div>
+
+      <div class="summary-row">
+        <div class="summary-card s-all"><div class="s-val" id="m-total">—</div><div class="s-lbl">Total bases</div></div>
+        <div class="summary-card s-ok" ><div class="s-val" id="m-on">—</div>   <div class="s-lbl">Ativas</div></div>
+        <div class="summary-card s-off"><div class="s-val" id="m-off">—</div>  <div class="s-lbl">Inativas</div></div>
+        <div class="summary-card s-fin"><div class="s-val" id="m-unk">—</div>  <div class="s-lbl">Sem dados</div></div>
+      </div>
+
+      <div class="scroll-x">
+        <table class="monitor-table">
+          <thead>
+            <tr>
+              <th>Base</th>
+              <th>MAC</th>
+              <th>Situação</th>
+              <th>Internet</th>
+              <th>Online</th>
+              <th>Situação 2</th>
+              <th>Última atualização</th>
+            </tr>
+          </thead>
+          <tbody id="monitor-tbody"></tbody>
+        </table>
+      </div>
+      <div id="status-monitor" class="status" style="margin-top:12px">Clique em "Atualizar" para carregar os dados.</div>
+    </div>
+  </div>
+
+  <!-- ══ ABA: CONFIGURAÇÕES ══════════════════════════════════════════════════ -->
+  <div class="tab-pane" id="pane-config">
+    <div class="grid2">
+
+      <!-- Formulário de config -->
+      <div class="card">
+        <div class="card-title">Configurações do Sistema</div>
+        <div class="card-sub">Altera informações exibidas no site e nos relatórios PDF. Salvo no servidor.</div>
+
+        <!-- EMPRESA -->
+        <div class="cfg-group">
+          <div class="cfg-group-title">Empresa</div>
+          <div class="cfg-grid">
+            <div class="field"><label>Nome da empresa</label>    <input id="cfg-empresa-nome"     placeholder="TOPODATUM"></div>
+            <div class="field"><label>Tagline / Subtítulo</label><input id="cfg-empresa-subtitulo" placeholder="Topografia & Geotecnologias"></div>
+            <div class="field full"><label>Caminho da logo</label><input id="cfg-empresa-logo"    placeholder="assets/logo.png"></div>
+            <div class="field"><label>CNPJ (opcional)</label>    <input id="cfg-empresa-cnpj"     placeholder="00.000.000/0001-00"></div>
+            <div class="field"><label>Site (opcional)</label>    <input id="cfg-empresa-site"     placeholder="www.topodatum.com.br"></div>
+          </div>
+        </div>
+
+        <!-- REDE -->
+        <div class="cfg-group">
+          <div class="cfg-group-title">Rede de Monitoramento</div>
+          <div class="cfg-grid">
+            <div class="field"><label>Sigla</label> <input id="cfg-rede-sigla"  placeholder="RPMC"></div>
+            <div class="field full"><label>Título completo</label><input id="cfg-rede-titulo" placeholder="Rede Particular de Monitoramento Contínuo"></div>
+          </div>
+        </div>
+
+        <!-- RESPONSÁVEL -->
+        <div class="cfg-group">
+          <div class="cfg-group-title">Responsável Técnico (PDF)</div>
+          <div class="cfg-grid">
+            <div class="field full"><label>Nome completo</label>   <input id="cfg-resp-nome"        placeholder="Alexandre Magnum..."></div>
+            <div class="field"><label>Habilitação / Cargo</label>  <input id="cfg-resp-habilitacao" placeholder="Engenheiro Agrimensor"></div>
+            <div class="field"><label>Registro (CREA/CAU)</label>  <input id="cfg-resp-crea"        placeholder="CREA-CE 000000-D"></div>
+            <div class="field"><label>Local da assinatura</label>  <input id="cfg-resp-local"       placeholder="Marco — CE"></div>
+          </div>
+        </div>
+
+        <!-- DESENVOLVEDOR -->
+        <div class="cfg-group">
+          <div class="cfg-group-title">Desenvolvedor (Rodapé)</div>
+          <div class="cfg-grid">
+            <div class="field"><label>Nome do dev</label> <input id="cfg-dev-nome" placeholder="Ermeson Braga"></div>
+          </div>
+        </div>
+
+        <!-- API -->
+        <div class="cfg-group">
+          <div class="cfg-group-title">Backend / API</div>
+          <div class="cfg-grid">
+            <div class="field full"><label>URL do servidor</label><input id="cfg-api-url" placeholder="http://192.168.100.40:3001"></div>
+          </div>
+        </div>
+
+        <!-- MAPA PRINCIPAL -->
+        <div class="cfg-group">
+          <div class="cfg-group-title">Mapa Principal (página)</div>
+          <div class="cfg-grid">
+            <div class="field"><label>Latitude centro</label>  <input id="cfg-mapa-lat"  type="number" step="0.0001" placeholder="-5.5"></div>
+            <div class="field"><label>Longitude centro</label> <input id="cfg-mapa-lng"  type="number" step="0.0001" placeholder="-39.5"></div>
+            <div class="field"><label>Zoom inicial (1–18)</label><input id="cfg-mapa-zoom" type="number" min="1" max="18" placeholder="7"></div>
+          </div>
+        </div>
+
+        <!-- PDF -->
+        <div class="cfg-group">
+          <div class="cfg-group-title">Relatório PDF</div>
+          <div class="cfg-grid">
+            <div class="field"><label>Zoom mapa satélite (1–19)</label><input id="cfg-pdf-zoom"    type="number" min="1" max="19" placeholder="15"></div>
+            <div class="field"><label>Timeout mapa (ms)</label>        <input id="cfg-pdf-timeout" type="number" min="1000" step="500" placeholder="5000"></div>
+          </div>
+        </div>
+
+        <div class="btnrow">
+          <button class="btn-ok"        id="saveConfigBtn">💾 Salvar configurações</button>
+          <button class="btn-secondary" id="reloadConfigBtn">↺ Recarregar</button>
+        </div>
+        <div id="status-config" class="status">Carregando configurações…</div>
+      </div>
+
+      <!-- Dicas -->
+      <div class="card" style="align-self:start">
+        <div class="card-title">ℹ Como funciona</div>
+        <div class="card-sub">Referência rápida dos campos e onde aparecem.</div>
+        <div style="font-size:12px;line-height:1.8;color:var(--muted)">
+          <p><strong style="color:var(--cyan)">empresa.nome</strong><br>Header do site, rodapé, PDF</p><br>
+          <p><strong style="color:var(--cyan)">empresa.logo</strong><br>Caminho relativo desde a raiz do site. Ex: <code>assets/logo.png</code></p><br>
+          <p><strong style="color:var(--cyan)">rede.sigla / titulo</strong><br>Título da seção, footer, PDF</p><br>
+          <p><strong style="color:var(--cyan)">responsavel.*</strong><br>Bloco de assinatura do relatório PDF</p><br>
+          <p><strong style="color:var(--cyan)">api.url</strong><br>Frontend usa este endereço para buscar status das bases</p><br>
+          <p><strong style="color:var(--cyan)">mapa.lat / lng / zoom</strong><br>Vista inicial do mapa interativo</p><br>
+          <p><strong style="color:var(--cyan)">pdf.mapaZoom</strong><br>Zoom do mapa satélite gerado no relatório PDF</p><br>
+          <p style="margin-top:12px;color:rgba(255,255,255,.3);font-size:11px">
+            As configurações são salvas em <code>site-config.json</code> no servidor e carregadas pelo frontend automaticamente.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /pane-config -->
+
+</div><!-- /wrap -->
+
+<script src="./script.js"></script>
+</body>
+</html>
