@@ -13,20 +13,6 @@
   box-sizing: border-box;
 }
 
-@keyframes grid-scroll {
-  from { background-position: 0 0; }
-  to   { background-position: 100px 100px; }
-}
-
-@keyframes glow-button {
-  0%, 100% { box-shadow: 0px 0px 5px transparent; filter: brightness(100%); }
-  50% { box-shadow: 0px 0px 5px var(--_color); filter: brightness(120%); }
-}
-
-@keyframes glow-card {
-  0%, 100% { box-shadow: 0px 0px 12px transparent; }
-  50% { box-shadow: 0px 0px 12px var(--_color-op5); }
-}
 
 body {
   background-color: #031a0c;
@@ -34,7 +20,6 @@ body {
     linear-gradient(rgba(10, 170, 58, 0.07) 1px, transparent 1px),
     linear-gradient(90deg, rgba(10, 170, 58, 0.07) 1px, transparent 1px);
   background-size: 100px 100px;
-  animation: grid-scroll 2s linear infinite;
   min-height: 100dvh;
   color: white;
   font-family: "Datatype", monospace;
@@ -195,7 +180,6 @@ div#cards-container > div {
   position: relative;
   z-index: 1;
   transition: border-color 0.3s, box-shadow 0.35s, transform 0.35s, z-index 0s;
-  animation: glow-card 3s ease-in-out infinite;
   cursor: pointer;
 }
 
@@ -680,12 +664,12 @@ a {
   font-family: "Datatype", monospace;
   cursor: pointer;
   border: none;
-  transition: opacity 0.2s;
-  animation: glow-button 2s linear infinite;
+  transition: opacity 0.2s, box-shadow 0.2s;
 }
 
 .btn-acessar:hover {
   opacity: 0.85;
+  box-shadow: 0 0 10px var(--_color);
 }
 
 @media (max-width: 560px) {
@@ -827,8 +811,10 @@ a {
   justify-content: center;
   position: relative;
   overflow: hidden;
-  animation: omni-pulse 2.5s ease-in-out infinite;
   transition: border-color .4s, box-shadow .4s;
+}
+#omnitrix-overlay.omni-open #omnitrix-screen {
+  animation: omni-pulse 2.5s ease-in-out infinite;
 }
 
 /* scanline animado */
@@ -850,10 +836,12 @@ a {
   top: 0; left: 0; right: 0;
   height: 60px;
   background: linear-gradient(180deg, rgba(0,204,68,.15), transparent);
-  animation: omni-scan 3s linear infinite;
   border-radius: 50%;
   pointer-events: none;
   z-index: 2;
+}
+#omnitrix-overlay.omni-open #omnitrix-screen::after {
+  animation: omni-scan 3s linear infinite;
 }
 
 #omnitrix-alien-symbol {

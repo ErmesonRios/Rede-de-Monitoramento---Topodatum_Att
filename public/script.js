@@ -1,18 +1,7 @@
 // ╔═════════════════════════════════════════════════════════════════════════════╗
-// ║  AMBIENTE — altere apenas esta linha para trocar entre local e produção    ║
+// ║  TUNNEL CLOUDFLARE — troque esta URL toda vez que o tunnel reiniciar       ║
 // ╚═════════════════════════════════════════════════════════════════════════════╝
-//
-//  "local" → acessa o servidor pelo IP da rede local (192.168.100.40:3001)
-//  "ngrok" → acessa via túnel ngrok (para Firebase Hosting ou acesso externo)
-//  "prod"  → domínio próprio em produção (quando disponível)
-//
-const AMBIENTE = "ngrok"; // ← ALTERE AQUI ↑
-
-const _URLS = {
-  local: "http://192.168.100.40:3001",
-  ngrok: "https://scowling-aviator-shrapnel.ngrok-free.dev",
-  prod:  "",   // ex: "https://api.topodatum.com.br"
-};
+const CLOUDFLARE_TUNNEL_URL = "https://scowling-aviator-shrapnel.ngrok-free.dev"; // ← ALTERE AQUI
 
 // ╔═════════════════════════════════════════════════════════════════════════════╗
 // ║  SITE_CONFIG — demais configurações gerais do sistema                      ║
@@ -48,9 +37,9 @@ const SITE_CONFIG = {
     nome: "Ermeson Braga",
   },
 
-  // ── API — URL resolvida automaticamente pelo AMBIENTE acima ──────────────────
+  // ── API — URL do tunnel Cloudflare (constante no topo do arquivo) ────────────
   api: {
-    url: _URLS[AMBIENTE] || _URLS.local,
+    url: CLOUDFLARE_TUNNEL_URL,
   },
 
   // ── MAPA PRINCIPAL ────────────────────────────────────────────────────────────
@@ -180,7 +169,7 @@ const COORDINATES = [
 // FOTOS DOS MONUMENTOS — populado automaticamente via /api/photos.
 // NÃO edite manualmente: faça upload pela página admin (/admin?pass=99).
 // A URL é sempre construída a partir de SITE_CONFIG.api.url, então funciona
-// mesmo quando o ngrok reiniciar.
+// mesmo quando o tunnel Cloudflare reiniciar — basta trocar CLOUDFLARE_TUNNEL_URL.
 // =============================================================================
 const MONUMENT_PHOTOS = {};
 
@@ -200,7 +189,10 @@ const loadMonumentPhotos = async () => {
 // CONVERSÃO UTM (Zona 24S / SIRGAS 2000) → WGS-84
 // Usado automaticamente para plotar cada base no mapa.
 // =============================================================================
+const _utmCache = new Map();
 const utmToLatLng = (east, north) => {
+  const key = `${east},${north}`;
+  if (_utmCache.has(key)) return _utmCache.get(key);
   const k0 = 0.9996, a = 6378137.0, es = 0.00669438;
   const e1 = (1 - Math.sqrt(1 - es)) / (1 + Math.sqrt(1 - es));
   const x  = east - 500000;
@@ -226,7 +218,9 @@ const utmToLatLng = (east, north) => {
     - (1 + 2*T1 + C1) * D**3/6
     + (5 - 2*C1 + 28*T1 - 3*C1**2 + 8*ep2 + 24*T1**2) * D**5/120)
     / Math.cos(p1);
-  return { lat: lat * (180/Math.PI), lng: (lon0 + lon) * (180/Math.PI) };
+  const result = { lat: lat * (180/Math.PI), lng: (lon0 + lon) * (180/Math.PI) };
+  _utmCache.set(key, result);
+  return result;
 };
 
 // Coordenadas aproximadas para bases sem medição real ainda
@@ -271,7 +265,7 @@ const getCardGeo = (card) => {
 const API_URL = SITE_CONFIG.api.url; // ← configurado em SITE_CONFIG.api.url (topo do arquivo)
 
 // =============================================================================
-// PATCH NGROK — adiciona automaticamente o header exigido pelo ngrok
+// PATCH TUNNEL — adiciona header para bypass de aviso do ngrok/cloudflare
 // Sem precisar alterar os fetch() existentes no código.
 // =============================================================================
 (() => {
@@ -789,7 +783,11 @@ const initMap = () => {
     }
   });
 
-  window.addEventListener("resize", () => map.invalidateSize());
+  let _resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(() => map.invalidateSize(), 150);
+  });
 };
 
 init();
@@ -853,6 +851,15 @@ fetchBaseStatuses();
 }());
 
 // PDF usa SITE_CONFIG diretamente — veja o bloco no topo do arquivo.
+
+const loadScript = (src) => new Promise((resolve, reject) => {
+  if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+  const s = document.createElement("script");
+  s.onload = resolve;
+  s.onerror = reject;
+  s.src = src;
+  document.head.appendChild(s);
+});
 
 // Busca imagem satélite via ESRI REST export API (sem html2canvas, sem Leaflet)
 // O ESRI retorna um JPEG diretamente — limpo, sem interferência do CSS da página.
@@ -935,6 +942,7 @@ const loadImg = async (src) => {
 // GERADOR DE PDF — layout compacto e melhor aproveitamento da página
 // =============================================================================
 const generatePDF = async (card) => {
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
   const { jsPDF } = window.jspdf;
   const btn = document.getElementById("modal-pdf-btn");
   const origLabel = btn.textContent;
