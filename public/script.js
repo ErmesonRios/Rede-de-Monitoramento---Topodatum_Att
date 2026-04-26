@@ -1,7 +1,7 @@
 // ╔═════════════════════════════════════════════════════════════════════════════╗
 // ║  TUNNEL CLOUDFLARE — troque esta URL toda vez que o tunnel reiniciar       ║
 // ╚═════════════════════════════════════════════════════════════════════════════╝
-const CLOUDFLARE_TUNNEL_URL = "https://scowling-aviator-shrapnel.ngrok-free.dev"; // ← ALTERE AQUI
+const CLOUDFLARE_TUNNEL_URL = "https://philips-grid-stanley-due.trycloudflare.com"; // ← ALTERE AQUI
 
 // ╔═════════════════════════════════════════════════════════════════════════════╗
 // ║  SITE_CONFIG — demais configurações gerais do sistema                      ║
@@ -405,6 +405,7 @@ const drawCard = () => {
     p.textContent  = card.finished ? "● FINALIZADA" : (card.mac ? "Consultando..." : "Saiba mais");
     p.className    = "card-status-text";
     div.style.position = "relative";
+    div.dataset.code = card.code || "";
 
     // Imagem do card — controlada por SITE_CONFIG.cards.imagem
     const modoImagem = SITE_CONFIG.cards?.imagem ?? "satellite";
@@ -596,10 +597,19 @@ let modalMap         = null;
 let currentModalCard = null;
 
 const openModal = (card) => {
-  // Destruir mapa anterior ANTES de resetar o innerHTML (container ainda anexado)
   if (modalMap) {
     try { modalMap.remove(); } catch (_) {}
     modalMap = null;
+  }
+
+  // Atualiza URL e reseta painel QR
+  _currentShareCode = card.code || "";
+  history.replaceState(null, "", `?base=${encodeURIComponent(_currentShareCode)}`);
+  const _qp = document.getElementById("qr-panel");
+  if (_qp) {
+    _qp.classList.add("hidden");
+    const _qw = document.getElementById("qr-canvas-wrapper");
+    if (_qw) _qw.innerHTML = "";
   }
 
   const liveData = card.finished
@@ -661,6 +671,9 @@ const closeModal = () => {
     try { modalMap.remove(); } catch (_) {}
     modalMap = null;
   }
+  history.replaceState(null, "", location.pathname);
+  const _qp = document.getElementById("qr-panel");
+  if (_qp) _qp.classList.add("hidden");
 };
 
 modalTabsEl.addEventListener("click", (e) => {
@@ -696,7 +709,13 @@ navButtons.forEach((it) => it.addEventListener("click", changeSection));
 // =============================================================================
 
 const init = async () => {
-  // Carrega cards e fotos em paralelo
+  // Skeletons enquanto aguarda o backend
+  for (let i = 0; i < COORDINATES.length; i++) {
+    const sk = document.createElement("div");
+    sk.className = "skeleton-card";
+    cardsContainer.appendChild(sk);
+  }
+
   await Promise.all([
     (async () => {
       try {
@@ -709,15 +728,23 @@ const init = async () => {
     })(),
     loadMonumentPhotos(),
   ]);
+  cardsContainer.querySelectorAll(".skeleton-card").forEach(sk => sk.remove());
   CARDS.sort((a, b) => (a.finished === b.finished ? 0 : a.finished ? 1 : -1));
   drawCard();
   initMap();
+  initStatsAndControls();
+  initShareBtn();
+  initEventLog();
+  fetchBaseStatuses();
+  setInterval(fetchBaseStatuses, 60_000);
+  checkUrlParam();
 };
 
 // ── Status ao vivo (banco de dados) ──────────────────────────────────────────
 
-let baseStatusMap = {};
-let cardMarkers   = {};
+let baseStatusMap  = {};
+let cardMarkers    = {};
+let markersByCode  = {};
 
 const updateCardDots = () => {
   // Bases com finished:true têm dot próprio — não atualizar pelo banco
@@ -781,6 +808,24 @@ const initMap = () => {
       if (!cardMarkers[card.mac]) cardMarkers[card.mac] = [];
       cardMarkers[card.mac].push(marker);
     }
+    if (card.code) markersByCode[card.code] = marker;
+  });
+
+  // Botão fullscreen
+  const fsBtn = document.createElement("button");
+  fsBtn.id          = "map-fullscreen-btn";
+  fsBtn.type        = "button";
+  fsBtn.title       = "Tela cheia";
+  fsBtn.textContent = "⛶";
+  document.getElementById("map-wrapper").appendChild(fsBtn);
+  fsBtn.addEventListener("click", () => {
+    const wrapper = document.getElementById("map-wrapper");
+    if (document.fullscreenElement) document.exitFullscreen();
+    else wrapper.requestFullscreen?.() || wrapper.webkitRequestFullscreen?.();
+  });
+  document.addEventListener("fullscreenchange", () => {
+    fsBtn.textContent = document.fullscreenElement ? "✕" : "⛶";
+    setTimeout(() => map.invalidateSize(), 320);
   });
 
   let _resizeTimer;
@@ -794,8 +839,15 @@ init();
 
 const fetchBaseStatuses = async () => {
   try {
-    const res  = await fetch(`${API_URL}/api/bases`);
+    const res = await fetch(`${API_URL}/api/bases`);
+    if (!res.ok) return;
     const rows = await res.json();
+    if (!Array.isArray(rows)) return;
+
+    const prevSituacoes = Object.fromEntries(
+      Object.entries(baseStatusMap).map(([k, v]) => [k, v.situacao])
+    );
+
     rows.forEach(({ maquina, situacao, ultima_atualizacao }) => {
       baseStatusMap[maquina] = {
         situacao,
@@ -804,13 +856,30 @@ const fetchBaseStatuses = async () => {
           : "—",
       };
     });
+
+    // Notifica mudanças de status detectadas no polling
+    if (Object.keys(prevSituacoes).length) {
+      rows.forEach(({ maquina, situacao }) => {
+        const prev = prevSituacoes[maquina];
+        if (prev && prev !== situacao) {
+          const card = CARDS.find(c => c.mac === maquina && !c.finished);
+          if (card) {
+            const label = card.code ? `Base ${card.code}` : card.title;
+            showToast(
+              situacao === "SIM" ? `${label} voltou ATIVA` : `${label} ficou INATIVA`,
+              situacao === "SIM" ? "active" : "inactive"
+            );
+          }
+        }
+      });
+    }
+
     updateCardDots();
+    updateStats();
   } catch {
     console.warn("API de status indisponível — operando sem dados ao vivo.");
   }
 };
-
-fetchBaseStatuses();
 
 // Popula toda a UI estática a partir de SITE_CONFIG
 (function applyConfig() {
@@ -843,7 +912,7 @@ fetchBaseStatuses();
       if (!el) return;
       el.src = SITE_CONFIG.empresa.logo;
       el.alt = SITE_CONFIG.empresa.nome;
-      el.style.display = "block";
+      el.style.visibility = "visible";
     };
     applyLogo("site-logo");
     applyLogo("footer-logo-img");
@@ -952,6 +1021,13 @@ const generatePDF = async (card) => {
 
   const logoImg = await loadImg(SITE_CONFIG.empresa.logo);
 
+  // QR de localização Google Maps para o PDF
+  const _pdfGeo    = getCardGeo(card);
+  const _pdfMapsUrl = _pdfGeo
+    ? `https://www.google.com/maps/search/?api=1&query=${_pdfGeo.lat.toFixed(7)},${_pdfGeo.lng.toFixed(7)}`
+    : null;
+  const pdfQRDataUrl = _pdfMapsUrl ? await generateQRCodeDataURL(_pdfMapsUrl, 300) : null;
+
   try {
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
@@ -1010,12 +1086,12 @@ const generatePDF = async (card) => {
       S.line(0.5);
       doc.line(0, 10, pW, 10);
 
-      S.font("helvetica", "bold");
+      S.font("times", "bold");
       S.size(6.5);
       S.text(...DG);
       doc.text(SITE_CONFIG.empresa.nome, mg, 6.8);
 
-      S.font("helvetica", "normal");
+      S.font("times", "normal");
       S.text(...LB);
       doc.text(`BASE ${safe(card.code)} — ${safe(card.municipality)}/${safe(card.state)}`, pW / 2, 6.8, { align: "center" });
       doc.text("MONOGRAFIA DA BASE GEODÉSICA", pW - mg, 6.8, { align: "right" });
@@ -1037,7 +1113,7 @@ const generatePDF = async (card) => {
       S.line(0.2);
       doc.line(mg + 3, y + 7.5, pW - mg, y + 7.5);
 
-      S.font("helvetica", "bold");
+      S.font("times", "bold");
       S.size(8);
       S.text(...DG);
       doc.text(title, mg + 7, y + 5.3);
@@ -1053,7 +1129,7 @@ const generatePDF = async (card) => {
       S.line(0.2);
       doc.line(x + 2.6, ly + 7.2, x + w, ly + 7.2);
 
-      S.font("helvetica", "bold");
+      S.font("times", "bold");
       S.size(7.5);
       S.text(...DG);
       doc.text(title, x + 6, ly + 5.1);
@@ -1065,12 +1141,12 @@ const generatePDF = async (card) => {
       S.line(0.22);
       doc.rect(x, fy, w, h, "FD");
 
-      S.font("helvetica", "normal");
+      S.font("times", "normal");
       S.size(5.4);
       S.text(...LB);
       doc.text(String(label).toUpperCase(), x + 2.5, fy + 4.3);
 
-      S.font("helvetica", "bold");
+      S.font("times", "bold");
       S.size(7.2);
       S.text(...BK);
 
@@ -1100,48 +1176,60 @@ const generatePDF = async (card) => {
         LOGO_H
       );
 
-      S.font("helvetica", "bold");
+      S.font("times", "bold");
       S.size(9);
       S.text(...DG);
       doc.text(SITE_CONFIG.empresa.nome, mg + LOGO_W + 5, hb + 6);
 
-      S.font("helvetica", "normal");
+      S.font("times", "normal");
       S.size(5.5);
       S.text(...LB);
       doc.text(SITE_CONFIG.empresa.subtitulo.toUpperCase(), mg + LOGO_W + 5, hb + 11);
     } else {
-      S.font("helvetica", "bold");
+      S.font("times", "bold");
       S.size(10);
       S.text(...DG);
       doc.text(SITE_CONFIG.empresa.nome, mg, hb + 7);
 
-      S.font("helvetica", "normal");
+      S.font("times", "normal");
       S.size(5.5);
       S.text(...LB);
       doc.text(SITE_CONFIG.empresa.subtitulo.toUpperCase(), mg, hb + 12);
     }
 
     // título central
-    S.font("helvetica", "bold");
+    S.font("times", "bold");
     S.size(11);
     S.text(...BK);
     doc.text("MONOGRAFIA DA BASE GEODÉSICA", pW / 2, hb + 6, { align: "center" });
 
-    S.font("helvetica", "normal");
+    S.font("times", "normal");
     S.size(7);
     S.text(70, 70, 70);
     doc.text(safe(card.title), pW / 2, hb + 11.5, { align: "center" });
 
-    // badge
-    S.fill(...G);
-    doc.roundedRect(pW - mg - 22, hb + 2, 22, 11, 2, 2, "F");
+    // QR Code Google Maps (ou badge fallback)
+    const QR_MM = 20;
+    if (pdfQRDataUrl) {
+      doc.addImage(pdfQRDataUrl, "PNG", pW - mg - QR_MM, hb, QR_MM, QR_MM);
+      S.font("times", "bold");
+      S.size(5.5);
+      S.text(...G);
+      doc.text(safe(card.code), pW - mg - QR_MM / 2, hb + QR_MM + 2.8, { align: "center" });
+      S.font("times", "normal");
+      S.size(4.5);
+      S.text(...LB);
+      doc.text("Google Maps", pW - mg - QR_MM / 2, hb + QR_MM + 5.8, { align: "center" });
+    } else {
+      S.fill(...G);
+      doc.roundedRect(pW - mg - 22, hb + 2, 22, 11, 2, 2, "F");
+      S.font("times", "bold");
+      S.size(8);
+      S.text(255, 255, 255);
+      doc.text(safe(card.code), pW - mg - 11, hb + 9, { align: "center" });
+    }
 
-    S.font("helvetica", "bold");
-    S.size(8);
-    S.text(255, 255, 255);
-    doc.text(safe(card.code), pW - mg - 11, hb + 9, { align: "center" });
-
-    hb += 20;
+    hb += 27;
 
     S.draw(...G);
     S.line(0.7);
@@ -1196,7 +1284,7 @@ const generatePDF = async (card) => {
       S.line(0.25);
       doc.rect(mg, y, cW, MAP_H, "D");
 
-      S.font("helvetica", "normal");
+      S.font("times", "normal");
       S.size(8);
       S.text(...MT);
       doc.text("Mapa não disponível", pW / 2, y + MAP_H / 2, { align: "center" });
@@ -1206,7 +1294,7 @@ const generatePDF = async (card) => {
       S.fill(20, 20, 20);
       doc.rect(mg, y + MAP_H - 7, cW, 7, "F");
 
-      S.font("helvetica", "bold");
+      S.font("times", "bold");
       S.size(5.8);
       S.text(...G);
       doc.text(
@@ -1277,7 +1365,7 @@ const generatePDF = async (card) => {
       S.line(0.25);
       doc.rect(leftX, contentTop, leftW, 30, "FD");
 
-      S.font("helvetica", "normal");
+      S.font("times", "normal");
       S.size(7);
       S.text(...MT);
       doc.text("Foto não cadastrada", leftX + leftW / 2, contentTop + 17, { align: "center" });
@@ -1341,7 +1429,7 @@ const generatePDF = async (card) => {
       S.fill(...G);
       doc.rect(mg, y, 2.4, bH, "F");
 
-      S.font("helvetica", "normal");
+      S.font("times", "normal");
       S.size(7.5);
       S.text(...BK);
       doc.text(lines.slice(0, 7), mg + 6, y + 6);
@@ -1380,7 +1468,7 @@ const generatePDF = async (card) => {
         S.line(0.18);
         doc.rect(cx, y, colW[i], rowH, "FD");
 
-        S.font("helvetica", "bold");
+        S.font("times", "bold");
         S.size(6);
         S.text(...BK);
         doc.text(h, cx + colW[i] / 2, y + 5, { align: "center" });
@@ -1413,7 +1501,7 @@ const generatePDF = async (card) => {
           S.line(0.18);
           doc.rect(cx2, y, colW[i], rowH, "FD");
 
-          S.font("helvetica", i === 0 ? "bold" : "normal");
+          S.font("times", i === 0 ? "bold" : "normal");
           S.size(6);
           S.text(...BK);
           doc.text(String(v), cx2 + colW[i] / 2, y + 5, { align: "center" });
@@ -1428,7 +1516,7 @@ const generatePDF = async (card) => {
 
       checkPage(8);
 
-      S.font("helvetica", "italic");
+      S.font("times", "italic");
       S.size(6);
       S.text(...MT);
       doc.text("* Sistema de Referência SIRGAS 2000 (EPSG:31984) — Fuso UTM 24S.", mg, y);
@@ -1459,19 +1547,19 @@ const generatePDF = async (card) => {
     let ty = y + 26;
 
     if (SITE_CONFIG.responsavel.nome) {
-      S.font("helvetica", "bold");
+      S.font("times", "bold");
       S.size(8);
       S.text(...BK);
       doc.text(SITE_CONFIG.responsavel.nome, pW / 2, ty, { align: "center" });
       ty += 5;
     }
 
-    S.font("helvetica", "bold");
+    S.font("times", "bold");
     S.size(7.5);
     S.text(...BK);
     doc.text(SITE_CONFIG.responsavel.habilitacao, pW / 2, ty, { align: "center" });
 
-    S.font("helvetica", "normal");
+    S.font("times", "normal");
     S.size(7);
     S.text(...LB);
     doc.text(SITE_CONFIG.responsavel.crea, pW / 2, ty + 5, { align: "center" });
@@ -1509,12 +1597,12 @@ const generatePDF = async (card) => {
       S.line(0.5);
       doc.line(0, fy, pW, fy);
 
-      S.font("helvetica", "bold");
+      S.font("times", "bold");
       S.size(6);
       S.text(...DG);
       doc.text(SITE_CONFIG.empresa.nome, mg, fy + 5.2);
 
-      S.font("helvetica", "normal");
+      S.font("times", "normal");
       S.text(...MT);
       doc.text(`BASE ${safe(card.code)}  |  ${safe(card.municipality)}/${safe(card.state)}`, pW / 2, fy + 5.2, { align: "center" });
       doc.text(`Pág. ${p}/${totalPages}  |  ${shortDate} ${timeStr}`, pW - mg, fy + 5.2, { align: "right" });
@@ -1711,3 +1799,342 @@ const generatePDF = async (card) => {
     if (e.key === " " || e.key === "Enter") { e.preventDefault(); transBtn.click(); }
   });
 })();
+
+// =============================================================================
+// FEATURES ADICIONAIS
+// =============================================================================
+
+// ── Variável compartilhada para URL sharing ───────────────────────────────────
+let _currentShareCode = "";
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+const showToast = (msg, type = "info") => {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+  const t = document.createElement("div");
+  t.className   = `toast toast-${type}`;
+  t.textContent = msg;
+  container.appendChild(t);
+  requestAnimationFrame(() => t.classList.add("toast-show"));
+  setTimeout(() => {
+    t.classList.remove("toast-show");
+    t.addEventListener("transitionend", () => t.remove(), { once: true });
+  }, 3500);
+  addEventLog(msg, type);
+};
+
+// ── Stats bar ─────────────────────────────────────────────────────────────────
+const updateStats = () => {
+  const finished = CARDS.filter(c => c.finished).length;
+  const withMac  = CARDS.filter(c => c.mac && !c.finished);
+  const active   = withMac.filter(c => baseStatusMap[c.mac]?.situacao === "SIM").length;
+  const inactive = withMac.filter(c => baseStatusMap[c.mac]?.situacao === "NÃO").length;
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set("stat-total",    CARDS.length);
+  set("stat-active",   active);
+  set("stat-inactive", inactive);
+  set("stat-finished", finished);
+};
+
+// ── Filtro + busca ────────────────────────────────────────────────────────────
+const applyFilters = () => {
+  const query  = (document.getElementById("search-input")?.value || "").toLowerCase().trim();
+  const filter = document.querySelector(".filter-btn.active")?.dataset.filter || "all";
+  let visible  = 0;
+
+  document.querySelectorAll("#cards-container > div[data-code]").forEach(cardEl => {
+    const card = CARDS.find(c => c.code === cardEl.dataset.code);
+    if (!card) return;
+
+    const matchesQuery = !query
+      || (card.title        || "").toLowerCase().includes(query)
+      || (card.municipality || "").toLowerCase().includes(query)
+      || (card.code         || "").toLowerCase().includes(query);
+
+    const live       = card.mac ? baseStatusMap[card.mac] : null;
+    const isActive   = live?.situacao === "SIM";
+    const isInactive = live?.situacao === "NÃO";
+    const isFinished = !!card.finished;
+
+    const matchesFilter = filter === "all"
+      || (filter === "active"   && isActive)
+      || (filter === "inactive" && isInactive)
+      || (filter === "finished" && isFinished);
+
+    const show = matchesQuery && matchesFilter;
+    cardEl.style.display = show ? "" : "none";
+    if (show) visible++;
+  });
+
+  const noMsg = document.getElementById("no-results-msg");
+  if (noMsg) noMsg.style.display = visible === 0 ? "block" : "none";
+
+  // Sincroniza marcadores do mapa com o filtro ativo
+  Object.entries(markersByCode).forEach(([code, marker]) => {
+    const el = document.querySelector(`#cards-container > div[data-code="${code}"]`);
+    marker.setOpacity(!el || el.style.display !== "none" ? 1 : 0.18);
+  });
+};
+
+// ── Modo lista/grade ──────────────────────────────────────────────────────────
+let _isListMode = false;
+
+const toggleView = () => {
+  _isListMode = !_isListMode;
+  cardsContainer.classList.toggle("list-mode", _isListMode);
+  const btn = document.getElementById("view-toggle");
+  if (btn) btn.textContent = _isListMode ? "⊞" : "☰";
+};
+
+// ── Stats bar + controles: init ───────────────────────────────────────────────
+const initStatsAndControls = () => {
+  const section = document.querySelector("section#rpmc");
+  if (!section) return;
+
+  // Stats bar
+  const statsBar = document.createElement("div");
+  statsBar.id = "stats-bar";
+  statsBar.innerHTML = `
+    <div class="stat-item">
+      <span class="stat-number" id="stat-total">${CARDS.length}</span>
+      <span class="stat-label">Total</span>
+    </div>
+    <div class="stat-item stat-active">
+      <span class="stat-number" id="stat-active">—</span>
+      <span class="stat-label">Ativas</span>
+    </div>
+    <div class="stat-item stat-inactive">
+      <span class="stat-number" id="stat-inactive">—</span>
+      <span class="stat-label">Inativas</span>
+    </div>
+    <div class="stat-item stat-finished">
+      <span class="stat-number" id="stat-finished">${CARDS.filter(c => c.finished).length}</span>
+      <span class="stat-label">Finalizadas</span>
+    </div>`;
+  section.querySelector("h1").after(statsBar);
+
+  // Mensagem sem resultados
+  const noMsg = document.createElement("p");
+  noMsg.id = "no-results-msg";
+  noMsg.textContent = "Nenhuma base encontrada.";
+  cardsContainer.after(noMsg);
+
+  // Controls
+  const controls = document.createElement("div");
+  controls.id = "controls-bar";
+  controls.innerHTML = `
+    <input id="search-input" type="text" placeholder="Buscar base ou município…" autocomplete="off">
+    <div id="status-filters">
+      <button class="filter-btn active" data-filter="all">Todas</button>
+      <button class="filter-btn" data-filter="active">Ativas</button>
+      <button class="filter-btn" data-filter="inactive">Inativas</button>
+      <button class="filter-btn" data-filter="finished">Finalizadas</button>
+    </div>
+    <button id="view-toggle" title="Alternar visualização">☰</button>`;
+  statsBar.after(controls);
+
+  document.getElementById("search-input").addEventListener("input", applyFilters);
+  document.getElementById("status-filters").addEventListener("click", e => {
+    const btn = e.target.closest(".filter-btn");
+    if (!btn) return;
+    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    applyFilters();
+  });
+  document.getElementById("view-toggle").addEventListener("click", toggleView);
+};
+
+// ── Compartilhar + QR Code ────────────────────────────────────────────────────
+const getShareUrl = (code) => {
+  const url = new URL(location.href);
+  url.search = "";
+  if (code) url.searchParams.set("base", code);
+  return url.toString();
+};
+
+const initShareBtn = () => {
+  const btn    = document.getElementById("modal-share-btn");
+  const panel  = document.getElementById("qr-panel");
+  const copyBtn = document.getElementById("qr-copy-btn");
+  if (!btn || !panel) return;
+
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const isOpen = !panel.classList.contains("hidden");
+    if (isOpen) { panel.classList.add("hidden"); return; }
+
+    const _card   = CARDS.find(c => c.code === _currentShareCode);
+    const mapsUrl = _card ? getMapsUrl(_card) : null;
+    const url     = mapsUrl || getShareUrl(_currentShareCode);
+    const urlEl   = document.getElementById("qr-url");
+    const wrapper = document.getElementById("qr-canvas-wrapper");
+    if (urlEl)   urlEl.textContent = mapsUrl ? "Google Maps → localização da base" : url;
+    if (wrapper) wrapper.innerHTML = "";
+
+    panel.classList.remove("hidden");
+
+    try {
+      await loadScript("https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js");
+      if (wrapper) {
+        new QRCode(wrapper, {
+          text:         url,
+          width:        148,
+          height:       148,
+          colorDark:    "#000000",
+          colorLight:   "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+      }
+    } catch (_) {
+      if (wrapper) wrapper.innerHTML = `<p style="font-size:.72rem;color:#888;padding:1rem;text-align:center">QR indisponível</p>`;
+    }
+  });
+
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      const _c  = CARDS.find(c => c.code === _currentShareCode);
+      const url = (_c && getMapsUrl(_c)) || getShareUrl(_currentShareCode);
+      navigator.clipboard?.writeText(url)
+        .then(() => showToast("Localização copiada!", "info"))
+        .catch(() => showToast("Não foi possível copiar", "info"));
+    });
+  }
+
+  // Fecha painel ao clicar fora
+  document.addEventListener("click", e => {
+    if (!panel.classList.contains("hidden")
+        && !panel.contains(e.target)
+        && e.target !== btn) {
+      panel.classList.add("hidden");
+    }
+  });
+};
+
+// ── URL param: abre modal direto ao carregar ──────────────────────────────────
+const checkUrlParam = () => {
+  const code = new URLSearchParams(location.search).get("base");
+  if (!code) return;
+  const card = CARDS.find(c => c.code === code);
+  if (card) openModal(card);
+};
+
+// ── Log de eventos da sessão ──────────────────────────────────────────────────
+const _eventLog    = [];
+let   _unreadCount = 0;
+
+const addEventLog = (msg, type = "info") => {
+  if (typeof msg !== "string" || !msg) return;
+  const now = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  _eventLog.push({ time: now, msg, type });
+  _unreadCount++;
+  _renderEventLog();
+  _updateEventBadge();
+};
+
+const _updateEventBadge = () => {
+  const badge = document.getElementById("event-log-badge");
+  if (!badge) return;
+  badge.textContent    = _unreadCount > 9 ? "9+" : String(_unreadCount);
+  badge.style.display  = _unreadCount > 0 ? "flex" : "none";
+};
+
+const _renderEventLog = () => {
+  const list = document.getElementById("event-log-list");
+  if (!list) return;
+  if (!_eventLog.length) {
+    list.innerHTML = `<p class="log-empty">Nenhum evento registrado ainda.</p>`;
+    return;
+  }
+  list.innerHTML = _eventLog.slice().reverse().slice(0, 60).map(e =>
+    `<div class="log-entry log-${e.type}">
+       <span class="log-time">${e.time}</span>
+       <span class="log-msg">${e.msg}</span>
+     </div>`
+  ).join("");
+};
+
+const initEventLog = () => {
+  // Botão flutuante (canto inferior esquerdo)
+  const toggle = document.createElement("button");
+  toggle.id    = "event-log-toggle";
+  toggle.type  = "button";
+  toggle.title = "Histórico de eventos";
+  toggle.style.position = "relative";
+  toggle.innerHTML = `<span id="event-log-badge" style="display:none"></span>≡`;
+  document.body.appendChild(toggle);
+
+  // Painel
+  const panel = document.createElement("div");
+  panel.id = "event-log-panel";
+  panel.innerHTML = `
+    <div id="event-log-header">
+      Log de Eventos
+      <button id="event-log-clear" type="button">Limpar</button>
+    </div>
+    <div id="event-log-list">
+      <p class="log-empty">Nenhum evento registrado ainda.</p>
+    </div>`;
+  document.body.appendChild(panel);
+
+  toggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    panel.classList.toggle("open");
+    if (panel.classList.contains("open")) {
+      _unreadCount = 0;
+      _updateEventBadge();
+    }
+  });
+
+  document.getElementById("event-log-clear").addEventListener("click", () => {
+    _eventLog.length = 0;
+    _unreadCount = 0;
+    _updateEventBadge();
+    _renderEventLog();
+  });
+
+  document.addEventListener("click", e => {
+    if (panel.classList.contains("open")
+        && !panel.contains(e.target)
+        && e.target !== toggle) {
+      panel.classList.remove("open");
+    }
+  });
+};
+
+// ── Google Maps URL da base ───────────────────────────────────────────────────
+const getMapsUrl = (card) => {
+  const geo = getCardGeo(card);
+  if (!geo) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${geo.lat.toFixed(7)},${geo.lng.toFixed(7)}`;
+};
+
+// ── Gera QR code como DataURL (PNG) ──────────────────────────────────────────
+const generateQRCodeDataURL = async (text, size = 200) => {
+  try {
+    await loadScript("https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js");
+    return await new Promise((resolve) => {
+      const container = document.createElement("div");
+      container.style.cssText = "position:absolute;left:-9999px;top:-9999px;";
+      document.body.appendChild(container);
+      try {
+        new QRCode(container, {
+          text,
+          width:        size,
+          height:       size,
+          colorDark:    "#000000",
+          colorLight:   "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+        const canvas = container.querySelector("canvas");
+        resolve(canvas ? canvas.toDataURL("image/png") : null);
+      } catch (_) {
+        resolve(null);
+      } finally {
+        document.body.removeChild(container);
+      }
+    });
+  } catch (_) {
+    return null;
+  }
+};

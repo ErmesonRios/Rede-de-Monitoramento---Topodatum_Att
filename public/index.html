@@ -4,11 +4,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css" />
+  <meta name="theme-color" content="#0aaa3a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RPMC">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Datatype:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preload" href="assets/satellite.png" as="image">
+  <link rel="preload" href="assets/logo.png" as="image">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"></noscript>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <title>RPMC-TOPODATUM</title>
 </head>
 
@@ -44,7 +54,13 @@
       <div id="modal-body"></div>
       <div id="modal-footer">
         <a id="modal-link" target="_blank">Acessar Link</a>
-        <button id="modal-pdf-btn" type="button">&#x2913; Relatório PDF</button>
+        <button id="modal-share-btn" type="button">&#x26D3; Compartilhar</button>
+        <div id="qr-panel" class="hidden">
+          <div id="qr-canvas-wrapper"></div>
+          <div id="qr-url"></div>
+          <button id="qr-copy-btn" type="button">Copiar localiza&#xE7;&#xE3;o</button>
+        </div>
+        <button id="modal-pdf-btn" type="button">&#x2913; Relat&#xF3;rio PDF</button>
         <button id="modal-close-btn" type="button">Fechar</button>
       </div>
     </div>
@@ -82,5 +98,10 @@
 </body>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="./script.js"></script>
-
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+</script>
+<div id="toast-container"></div>
 </html>
