@@ -73,7 +73,11 @@ const BASE_FIELDS = `
 // SEGURANÇA
 // =============================================================================
 const app  = express();
-const PORT = process.env.API_PORT || 3001;
+// Render/Cloudflare colocam um proxy na frente — necessário para o express-rate-limit
+// ler o IP real via X-Forwarded-For sem lançar ValidationError.
+app.set("trust proxy", 1);
+// Render injeta a porta via process.env.PORT; localmente cai em API_PORT/3001.
+const PORT = process.env.PORT || process.env.API_PORT || 3001;
 
 // Arquivos estáticos com CORS explícito nas imagens (necessário para loadImg via fetch)
 app.use(express.static(path.join(__dirname, "public"), {
@@ -89,17 +93,31 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 
 // 2. CORS — restringe origens permitidas
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "").split(",").map(o => o.trim()).filter(Boolean);
+
+// Origens sempre permitidas, independentemente da configuração:
+//  - localhost / 127.0.0.1 (desenvolvimento)
+//  - qualquer túnel Cloudflare *.trycloudflare.com
+//  - frontend no Firebase Hosting (*.web.app / *.firebaseapp.com)
+//  - serviços no Render (*.onrender.com)
+const isAlwaysAllowed = (origin) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+  /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/i.test(origin) ||
+  /^https:\/\/[a-z0-9-]+\.web\.app$/i.test(origin) ||
+  /^https:\/\/[a-z0-9-]+\.firebaseapp\.com$/i.test(origin) ||
+  /^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(origin);
+
+const isOriginAllowed = (origin) => {
+  if (isAlwaysAllowed(origin)) return true;
+  return ALLOWED_ORIGINS.some((o) => origin.startsWith(o));
+};
+
 app.use(cors({
   origin: (origin, cb) => {
-    // permite requisições sem origin (file://, Postman, upload-cards.js)
+    // permite requisições sem origin (file://, Postman, upload-cards.js, same-origin)
     if (!origin) return cb(null, true);
-    // se ALLOWED_ORIGINS não configurado, bloqueia tudo que não é localhost
-    if (ALLOWED_ORIGINS.length === 0) {
-      const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-      return cb(isLocal ? null : new Error("CORS bloqueado"), isLocal);
-    }
-    const ok = ALLOWED_ORIGINS.some((o) => origin.startsWith(o));
-    cb(ok ? null : new Error("CORS bloqueado"), ok);
+    // não trata origem rejeitada como erro: apenas omite os headers de CORS
+    // (evita resposta HTTP 500 com stack trace; o navegador bloqueia normalmente)
+    cb(null, isOriginAllowed(origin));
   },
 }));
 

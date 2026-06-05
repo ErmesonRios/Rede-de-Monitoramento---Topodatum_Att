@@ -1,7 +1,7 @@
 // ╔═════════════════════════════════════════════════════════════════════════════╗
 // ║  TUNNEL CLOUDFLARE — troque esta URL toda vez que o tunnel reiniciar       ║
 // ╚═════════════════════════════════════════════════════════════════════════════╝
-const CLOUDFLARE_TUNNEL_URL = "https://philips-grid-stanley-due.trycloudflare.com"; // ← ALTERE AQUI
+const CLOUDFLARE_TUNNEL_URL = "https://creates-writes-heath-pension.trycloudflare.com"; // ← ALTERE AQUI
 
 // ╔═════════════════════════════════════════════════════════════════════════════╗
 // ║  SITE_CONFIG — demais configurações gerais do sistema                      ║
@@ -493,6 +493,14 @@ const infoField = (label, value) => {
   </div>`;
 };
 
+const _copyTd = (header, val) => {
+  const v = val ?? "—";
+  const content = v !== "—"
+    ? `<div class="coord-cell"><span>${v}</span><button class="copy-cell-btn" data-copy="${v}" title="Copiar">⧉</button></div>`
+    : v;
+  return `<td data-header="${header}">${content}</td>`;
+};
+
 const renderCoordinatesPane = (municipality) => {
   const bases = municipality ? COORDINATES.filter((c) => c.municipality === municipality) : [];
   if (!bases.length) return `<p class="empty-msg">Sem coordenadas cadastradas para esta base.</p>`;
@@ -500,12 +508,12 @@ const renderCoordinatesPane = (municipality) => {
   const rows = bases.map(({ radius, east, sigmaX, north, sigmaY, height, SigmaZ, location, antennaHeight }) => `
     <tr>
       <td data-header="Raio:">${radius}</td>
-      <td data-header="Este:">${east}</td>
-      <td data-header="Sigma X:">${sigmaX}</td>
-      <td data-header="Norte:">${north}</td>
-      <td data-header="Sigma Y:">${sigmaY}</td>
-      <td data-header="Altura:">${height}</td>
-      <td data-header="Sigma Z:">${SigmaZ}</td>
+      ${_copyTd("Este:", east)}
+      ${_copyTd("Sigma X:", sigmaX)}
+      ${_copyTd("Norte:", north)}
+      ${_copyTd("Sigma Y:", sigmaY)}
+      ${_copyTd("Altura:", height)}
+      ${_copyTd("Sigma Z:", SigmaZ)}
       <td data-header="Localidade:">${location}</td>
       <td data-header="Altura Antena:">${antennaHeight}</td>
     </tr>`).join("");
@@ -527,12 +535,12 @@ const renderArchivedCoordinates = (coords) => {
   const rows = coords.map(({ radius, east, sigmaX, north, sigmaY, height, SigmaZ, location, antennaHeight }) => `
     <tr>
       <td data-header="Raio:">${radius}</td>
-      <td data-header="Este:">${east}</td>
-      <td data-header="Sigma X:">${sigmaX ?? "—"}</td>
-      <td data-header="Norte:">${north}</td>
-      <td data-header="Sigma Y:">${sigmaY ?? "—"}</td>
-      <td data-header="Altura:">${height}</td>
-      <td data-header="Sigma Z:">${SigmaZ ?? "—"}</td>
+      ${_copyTd("Este:", east)}
+      ${_copyTd("Sigma X:", sigmaX ?? "—")}
+      ${_copyTd("Norte:", north)}
+      ${_copyTd("Sigma Y:", sigmaY ?? "—")}
+      ${_copyTd("Altura:", height)}
+      ${_copyTd("Sigma Z:", SigmaZ ?? "—")}
       <td data-header="Localidade:">${location ?? "—"}</td>
       <td data-header="Altura Antena:">${antennaHeight ?? "—"}</td>
     </tr>`).join("");
@@ -679,6 +687,20 @@ const closeModal = () => {
 modalTabsEl.addEventListener("click", (e) => {
   const tab = e.target.closest(".modal-tab");
   if (tab) activateModalTab(tab.getAttribute("data-tab"));
+});
+
+modalBodyEl.addEventListener("click", (e) => {
+  const btn = e.target.closest(".copy-cell-btn");
+  if (!btn) return;
+  const value = btn.dataset.copy;
+  if (!value) return;
+  navigator.clipboard?.writeText(value)
+    .then(() => {
+      btn.textContent = "✓";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "⧉"; btn.classList.remove("copied"); }, 1500);
+    })
+    .catch(() => {});
 });
 
 modalClose.addEventListener("click", closeModal);
@@ -2060,7 +2082,6 @@ const initEventLog = () => {
   toggle.id    = "event-log-toggle";
   toggle.type  = "button";
   toggle.title = "Histórico de eventos";
-  toggle.style.position = "relative";
   toggle.innerHTML = `<span id="event-log-badge" style="display:none"></span>≡`;
   document.body.appendChild(toggle);
 
