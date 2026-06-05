@@ -73,6 +73,9 @@ const BASE_FIELDS = `
 // SEGURANÇA
 // =============================================================================
 const app  = express();
+// Atrás do túnel Cloudflare há um proxy: necessário para o express-rate-limit
+// ler o IP real via X-Forwarded-For sem lançar ValidationError.
+app.set("trust proxy", 1);
 const PORT = process.env.API_PORT || 3001;
 
 // Arquivos estáticos com CORS explícito nas imagens (necessário para loadImg via fetch)
