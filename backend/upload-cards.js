@@ -6,10 +6,8 @@ require("dotenv").config();
 const http  = require("http");
 const CARDS = require("./cards-data");
 
-// 127.0.0.1 força IPv4 (localhost pode resolver para ::1 e dar ECONNREFUSED).
-const API_HOST = "127.0.0.1";
-// No Render a porta vem de process.env.PORT; localmente cai em API_PORT/3001.
-const API_PORT = Number(process.env.PORT) || Number(process.env.API_PORT) || 3001;
+const API_HOST = "localhost";
+const API_PORT = Number(process.env.API_PORT) || 3001;
 
 const esc = (v) =>
   String(v ?? "")

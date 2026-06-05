@@ -1,4 +1,4 @@
-const CACHE = "rpmc-v2";
+const CACHE = "rpmc-v1";
 const PRECACHE = ["/", "/index.html", "/style.css", "/script.js", "/assets/satellite.png", "/assets/logo.png"];
 
 self.addEventListener("install", e => {
