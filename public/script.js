@@ -1,7 +1,7 @@
 // ╔═════════════════════════════════════════════════════════════════════════════╗
 // ║  TUNNEL CLOUDFLARE — troque esta URL toda vez que o tunnel reiniciar       ║
 // ╚═════════════════════════════════════════════════════════════════════════════╝
-const CLOUDFLARE_TUNNEL_URL = "https://philips-grid-stanley-due.trycloudflare.com"; // ← ALTERE AQUI
+const CLOUDFLARE_TUNNEL_URL = "https://african-cruise-medicaid-stars.trycloudflare.com"; // ← ALTERE AQUI
 
 // ╔═════════════════════════════════════════════════════════════════════════════╗
 // ║  SITE_CONFIG — demais configurações gerais do sistema                      ║
